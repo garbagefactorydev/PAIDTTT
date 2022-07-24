@@ -2,7 +2,7 @@ import turtle
 import random
 import functools
 from time import sleep
-import ai
+from ai import AiPlayer
 
 
 class Game:
@@ -35,7 +35,7 @@ class Game:
 
     def ai_turn(self):
         if not self.ai_player:
-            self.ai_player = ai.AiPlayer(self)
+            self.ai_player = AiPlayer(self)
         if not self.game_over:
             ai_move = self.board[self.display.jump(self.ai_player.make_move())]
             self.display.draw_o()

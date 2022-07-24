@@ -1,52 +1,70 @@
+import random
+from copy import deepcopy
+
+
 class AiPlayer:
     def __init__(self, game):
         self.game = game
 
-    def consider_options(self):
-        available_options = []
-        for position in self.game.display.empty_fields:
-            option = self.consider_position(position)
-            available_options.append(option)
-        return sorted(available_options, key=lambda x: x[0], reverse=True)
-
     def make_move(self):
-        available_moves = self.consider_options()
-        return available_moves[0][1]
+        if not self.game.ai_positions and not self.game.player_positions:
+            return random.choice(self.game.display.empty_fields)
+        best_moves = self.consider_options()
+        return best_moves[0][0]
 
-    def consider_position(self, position):
-        center = '4'
-        corners = ['0', '2', '6', '8']
-        rating = 0
-        position_on_board = self.game.board[position]
-        oponent_positions_on_board = self.game.player_positions
-        new_situation = self.game.ai_positions[:]
-        new_situation.append(position_on_board)
-        if position_on_board == center:
-            rating += self.rate_position('center')
-        if position_on_board in corners:
-            rating += self.rate_position('corner')
-        if self.game.is_win_position(new_situation)[0]:
-            rating += self.rate_position('win')
-        if position_on_board in self.two_in_a_row_check(oponent_positions_on_board):
-            rating += self.rate_position('block player')
-        rating += len(self.two_in_a_row_check(new_situation))
-        return rating, position
+    def consider_options(self):
+        game_state = {"available_moves": self.game.display.empty_fields,
+                      "player_positions": self.game.player_positions,
+                      "ai_positions": self.game.ai_positions,
+                      "game_over": self.game.game_over}
+        best_moves = []
+        for position in game_state["available_moves"]:
+            test_game_state = deepcopy(game_state)
+            self.simulate_move(position, test_game_state, "ai")
+            rating = self.minimax(test_game_state, False)
+            best_moves.append((position, rating))
+        return sorted(best_moves, key=lambda x: x[1], reverse=True)
 
-    def two_in_a_row_check(self, situation):
-        two_in_a_row = []
-        for combination in self.game.win_combinations:
-            missing = [i for i in combination if i not in situation]
-            if len(missing) == 1:
-                if missing[0] not in self.game.player_positions:
-                    two_in_a_row.append(missing[0])
-        return two_in_a_row
+    def simulate_move(self, position, game_state, player):
+        player_positions = game_state["ai_positions"] if player == "ai" else game_state["player_positions"]
+        game_state["available_moves"].remove(position)
+        player_positions.append(self.game.board[position])
+        player_won, _ = self.game.is_win_position(player_positions)
+        draw = self.game.is_draw(game_state["available_moves"])
+        if player_won or draw:
+            game_state["game_over"] = True
 
-    @staticmethod
-    def rate_position(position):
-        position_rating = {
-            'win': 10,
-            'block player': 8,
-            'center': 2,
-            'corner': 1,
-        }
-        return position_rating[position]
+    def minimax(self, game_state, maximizing_player, alpha=-100, beta=100):
+        if game_state["game_over"]:
+            return self.evaluate_situation(game_state)
+
+        if maximizing_player:
+            max_eval = -100
+            for position in game_state["available_moves"]:
+                new_game_state = deepcopy(game_state)
+                self.simulate_move(position, new_game_state, "ai")
+                evaluation = self.minimax(new_game_state, False, alpha, beta)
+                max_eval = max(max_eval, evaluation)
+                alpha = max(alpha, evaluation)
+                if beta <= alpha:
+                    break
+            return max_eval
+
+        else:
+            min_eval = 100
+            for position in game_state["available_moves"]:
+                new_game_state = deepcopy(game_state)
+                self.simulate_move(position, new_game_state, "player")
+                evaluation = self.minimax(new_game_state, True, alpha, beta)
+                min_eval = min(min_eval, evaluation)
+                beta = min(beta, evaluation)
+                if beta <= alpha:
+                    break
+            return min_eval
+
+    def evaluate_situation(self, game_state):
+        ai, _ = self.game.is_win_position(game_state["ai_positions"])
+        player, _ = self.game.is_win_position(game_state["player_positions"])
+        if ai: return 1
+        if player: return -1
+        else: return 0
