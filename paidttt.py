@@ -2,11 +2,13 @@ import turtle
 import random
 import functools
 from time import sleep
+import ai
 
 
 class Game:
     def __init__(self, display_object):
         self.display = display_object
+        self.ai_player = None
         self.players = ("human", "ai")
         self.board = {value: str(count) for count, value in enumerate(self.display.empty_fields)}
         self.win_combinations = ('012', '345', '678',
@@ -32,8 +34,10 @@ class Game:
         self.ai_turn()
 
     def ai_turn(self):
+        if not self.ai_player:
+            self.ai_player = ai.AiPlayer(self)
         if not self.game_over:
-            ai_move = self.board[self.display.jump(self.display.random_free_position())]
+            ai_move = self.board[self.display.jump(self.ai_player.make_move())]
             self.display.draw_o()
             self.ai_positions.append(ai_move)
             self.check_winner('ai')
