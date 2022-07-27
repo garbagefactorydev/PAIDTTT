@@ -1,14 +1,19 @@
 import turtle
-from random import randrange, choice
-from functools import partial
+import random
+import functools
 from time import sleep
+from ai import AiPlayer
 
 
 class Game:
     def __init__(self, display_object):
         self.display = display_object
+        self.ai_player = None
         self.players = ("human", "ai")
         self.board = {value: str(count) for count, value in enumerate(self.display.empty_fields)}
+        self.win_combinations = ('012', '345', '678',
+                                 '036', '147', '258',
+                                 '048', '246')
 
         self.player_positions = []
         self.ai_positions = []
@@ -20,7 +25,7 @@ class Game:
             self.ai_turn()
 
     def choose_first_player(self):
-        return choice(self.players)
+        return random.choice(self.players)
 
     def player_turn(self, position):
         player_move = self.board[position]
@@ -29,26 +34,44 @@ class Game:
         self.ai_turn()
 
     def ai_turn(self):
+        if not self.ai_player:
+            self.ai_player = AiPlayer(self)
         if not self.game_over:
-            ai_move = self.board[self.display.jump(self.display.random_free_position())]
+            ai_move = self.board[self.display.jump(self.ai_player.make_move())]
             self.display.draw_o()
             self.ai_positions.append(ai_move)
             self.check_winner('ai')
 
     def check_winner(self, player):
-        win_combinations = ('012', '345', '678',
-                            '036', '147', '258',
-                            '048', '246')
         positions = self.player_positions if player == 'human' else self.ai_positions
-        for win_combination in win_combinations:
-            if all(position in positions for position in list(win_combination)):
-                decoded_win_combination = self.decode_win_combination(win_combination)
-                self.declare_winner(player, decoded_win_combination)
+        player_won, win_combination = self.is_win_position(positions)
+        if player_won:
+            decoded_win_combination = self.decode_win_combination(win_combination)
+            self.declare_winner(player, decoded_win_combination)
+        elif self.is_draw():
+            self.declare_draw()
+
+    def declare_draw(self):
+        self.game_over = True
+        self.display.game_over_screen("draw")
 
     def declare_winner(self, winner, combination):
         self.game_over = True
         self.display.draw_cross_out(combination)
         self.display.game_over_screen(winner)
+
+    def is_draw(self, empty_fields=None):
+        if empty_fields is None:
+            empty_fields = self.display.empty_fields
+        if empty_fields == [] and not self.game_over:
+            return True
+        return False
+
+    def is_win_position(self, positions):
+        for win_combination in self.win_combinations:
+            if all(position in positions for position in list(win_combination)):
+                return True, win_combination
+        return False, ''
 
     def decode_win_combination(self, combination):
         decoder = {key: value for value, key in self.board.items()}
@@ -105,14 +128,14 @@ p.penup()
 """
     GAME_OVER = """
 self.pen.color("yellow")
-winner = self.kwargs["game_over"]
+message = ' '.join([self.kwargs["game_over"].upper() + " WON" if self.kwargs["game_over"] != 'draw' else "ITS A DRAW"])
 p.hideturtle()
 p.color("yellow")
 p.write("Game Over", align='center', font=('Arial', 60, 'bold'))
 p.penup()
 p.goto(0, -40)
 p.pendown()
-p.write(f"{winner.upper()} WON", align='center', font=('Arial', 30, 'bold'))
+p.write(f"{message}", align='center', font=('Arial', 30, 'bold'))
 p.penup()
 p.goto(0, -80)
 p.pendown()
@@ -126,7 +149,7 @@ p.write(f"Press [R]estart or [C]lose", align='center', font=('Arial', 20, 'bold'
         "game_over": GAME_OVER,
     }
 
-    def __init__(self, position, symbol="o", **kwargs):
+    def __init__(self, position, symbol, **kwargs):
         self.kwargs = kwargs
         self.position = position
         self.symbol = symbol
@@ -138,6 +161,7 @@ p.write(f"Press [R]estart or [C]lose", align='center', font=('Arial', 20, 'bold'
         p = self.pen
         size = 40
         p.pensize(10)
+        p.speed(7)
         p.penup()
 
         exec(Drawing.DRAWINGS[self.symbol])
@@ -193,14 +217,14 @@ class Display:
     @staticmethod
     def draw_cross_out(pattern):
         Drawing(pattern, "cross")
-        sleep(3)
+        sleep(2)
 
     def draw_game_over(self, winner):
         Drawing(self.cursor_position, "game_over", game_over=winner)
 
     def random_free_position(self):
         if ef := len(self.empty_fields):
-            random_index = randrange(0, ef)
+            random_index = random.randrange(0, ef)
             return self.empty_fields[random_index]
 
     def jump(self, position):
@@ -236,7 +260,7 @@ class Display:
 
         s.onkey(self.end, "c")
         for key in self.navigation:
-            s.onkey(partial(self.move, key), key=key)
+            s.onkey(functools.partial(self.move, key), key=key)
         s.onkey(self.draw_x, "space")
         s.onkey(self.draw_o, "o")
         s.onkey(self.game_over_screen, "g")
